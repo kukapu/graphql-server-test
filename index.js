@@ -1,30 +1,31 @@
 import { ApolloServer, UserInputError, gql } from 'apollo-server'
-import {v1 as uuid} from 'uuid'
+import './db.js'
+import Person from './models/person.js'
+import User from './models/user.js'
 
-const personas = [
-  {
-    name: 'GTO',
-    age: '25',
-    phone: '040-123543',
-    street: 'Tapiolankatu 5 A',
-    city: 'Espoo',
-    id: '3d594650-3436-11e9-bc57-8b80ba54c431'
-  },
-  {
-    name: 'Pepe',
-    phone: '040-432342',
-    street: 'Malminkaari 10 A',
-    city: 'Helsinki',
-    id: '3d599470-3436-11e9-bc57-8b80ba54c431'
-  },
-  {
-    name: 'Paco',
-    street: 'Nallemäentie 22 C',
-    city: 'Helsinki',
-    id: '3d599471-3436-11e9-bc57-8b80ba54c431'
-  },
-]
-
+// const personas = [
+//   {
+//     name: 'GTO',
+//     age: '25',
+//     phone: '040-123543',
+//     street: 'Tapiolankatu 5 A',
+//     city: 'Espoo',
+//     id: '3d594650-3436-11e9-bc57-8b80ba54c431'
+//   },
+//   {
+//     name: 'Pepe',
+//     phone: '040-432342',
+//     street: 'Malminkaari 10 A',
+//     city: 'Helsinki',
+//     id: '3d599470-3436-11e9-bc57-8b80ba54c431'
+//   },
+//   {
+//     name: 'Paco',
+//     street: 'Nallemäentie 22 C',
+//     city: 'Helsinki',
+//     id: '3d599471-3436-11e9-bc57-8b80ba54c431'
+//   },
+// ]
 
 const typeDefs = gql`
   enum YesNo {
@@ -59,34 +60,51 @@ const typeDefs = gql`
       street: String!
       city: String!
     ): Person
+    editNumber(
+      name: String!
+      phone: String!
+    ) : Person
   }
 `
 
 const resolvers = {
   Query: {
-    personCount: () => personas.length,
-    allPersons: (root, args) => {
-      if (!args.phone) return personas
-      const byPhone = (person) => args.phone === 'YES' ? person.phone : !person.phone
-  
-      return personas.filter(byPhone)
+    personCount: () => Person.collection.countDocuments(),
+    allPersons: async (root, args) => {
+      if( !args.phone ) return await Person.find({})
+      return Person.find({ phone: { $exists: args.phone === 'YES' } })
     },
-    findPerson: (root, args) => {
+    findPerson: async (root, args) => {
       const { name } = args
-      return personas.find(p => p.name === name)
+      return await Person.findOne({ name })
     }
   },
   Mutation: {
-    addPerson: (root, args) => {
-      if(personas.find(p => p.name === args.name)) {
-        throw new UserInputError('Person already exists', {
-          invalidArgs: args.name,
+    addPerson: async (root, args) => {
+      const person = new Person({ ...args })
+      try {
+        await person.save()
+      } catch (error) {
+        throw new UserInputError(error.message, {
+          invalidArgs: args,
         })
       }
-      const person = { ...args, id: uuid() }
-      personas.push(person) // update databa with new person
       return person
-    }
+    },
+    editNumber: async (root, args) => {
+      const person = await Person.findOne({ name: args.name })
+      if (!person) return
+
+      person.phone = args.phone
+      try {
+        await person.save()
+      } catch (error) {
+        throw new UserInputError(error.message, {
+          invalidArgs: args,
+        })
+      }
+      return person
+    },
   },
   Person: {
     address: (root) => {
