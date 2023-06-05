@@ -109,6 +109,8 @@ const resolvers = {
   Mutation: {
     addPerson: async (root, args, context) => {
       const { currentUser } = context
+      console.log(context.currentUser)
+
       if( !currentUser ) throw new AuthenticationError("not authenticated")
 
       const person = new Person({ ...args })
@@ -198,8 +200,8 @@ const server = new ApolloServer({
   resolvers,
   context: async({ req }) => {
     const auth = req ? req.headers.authorization : null
-    if(auth && auth.toLowerCase().startsWith('bearer ')) {
-      const token = auth.substring(7)
+    if(auth) {
+      const token = auth
       const { id } = jwt.verify(token, JWT_SECRET)
       const currentUser = await User.findById(id).populate('friends')
       return { currentUser }
